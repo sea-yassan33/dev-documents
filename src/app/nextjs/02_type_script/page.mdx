@@ -1,0 +1,113 @@
+# typeScriptについて
+
+## 参考
+
+- [超TypeScript入門完全パック](https://www.youtube.com/watch?v=F9vzRz6jyRk&t=6090s)
+- [サバイバルTypeScript](https://typescriptbook.jp/)
+
+## コンパイル・実行方法
+
+```sh
+## コンパイル方法
+tsc index.ts
+
+## 実行方法
+node index.js
+```
+
+## 型について
+
+- プリミティブ型
+  - boolean: 真偽値。
+  - number: 数値。
+  - string: 文字列。
+  - bigint: 大きな整数。
+  - symbol: 一意の値を示す。
+  - undefined: 値が定義されていない状態を示す。
+  - null: 値が存在しない状態を示す。
+
+- 特殊な型
+  - any: 何でも代入できる型。型が不明な場合に使用する。その値に対する操作の制限がなく、型の安全性は弱まる。
+  - unknown: any型と似て、何でも代入できる型。その値に対する操作は制限され、型の安全性が保たれる。
+  - void: 値が存在しないことを示す。関数が何も返さない場合に使用する。
+  - never: 決して何も返さないことを示す。エラーを投げる関数や無限ループの関数の戻り値として使用する。
+
+- 型エイリアス
+  - 型エイリアスは既存の型を新たな名前で定義する機能。
+
+```js
+type StringOrNumber = string | number;
+let value: StringOrNumber;
+value = "hello"; // string型が代入可能
+value = 123; // number型も代入可能
+```
+
+## 配列の型注釈
+- 配列の型注釈には型名[]またはArray＜型名＞を使う。
+
+```js
+let numbers: number[];
+let strings: Array<string>;
+```
+
+## オブジェクトの型注釈
+```js
+let obj: { name: string; age: number };
+
+// オプションプロパティ?をつけたプロパティは省略可能。
+let obj: { name: string; age?: number };
+obj = { name: "John" };
+```
+
+## オブジェクトはインデックス型
+```js
+let obj: { [key: string]: number };
+obj = { key1: 1, key2: 2 };
+console.log(obj["key1"]);
+console.log(obj["key2"]);
+```
+
+## map型
+```js
+let map: Map<string, number> = new Map();
+map.set("John", 30);
+map.set("Jane", 25);
+ 
+console.log(map.get("name"));
+```
+
+## アロー関数
+```js
+const greet = (name: string): string => {
+  return `Hello ${name}`;
+};
+ 
+console.log(greet("John"));
+```
+
+## 関数宣言
+```js
+function greet(name: string): string {
+  return `Hello ${name}`;
+}
+ 
+console.log(greet("John"));
+```
+
+## クラス構文
+```js
+class Person {
+  name: string;
+  age: number;
+  constructor(name: string, age: number) {
+    this.name = name;
+    this.age = age;
+  }
+  introduce(): void {
+    console.log(`My name is ${this.name} and I am ${this.age} years old.`);
+  }
+}
+ 
+const john = new Person("John", 20);
+john.introduce();
+```

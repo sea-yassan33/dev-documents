@@ -8,6 +8,10 @@ npm install @next/mdx @mdx-js/loader rehype-prism-plus prismjs
 
 - [導入手順について](./src/app/docs/page.mdx)
 
+## デプロイ
+
+https://dev-documents.vercel.app/
+
 ## 履歴
 
 |日付|内容|

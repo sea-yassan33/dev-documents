@@ -1,0 +1,83 @@
+# Next_jsのプロジェクト立ち上げ方法
+
+## Next.jsの導入
+```sh
+npx create-next-app@15.5.9
+
+Need to install the following packages:
+create-next-app@15.5.9
+Ok to proceed? (y) y
+
+√ What is your project named? ... pre-nextjs
+√ Would you like to use TypeScript? .../ Yes
+√ Which linter would you like to use? » ESLint
+√ Would you like to use Tailwind CSS? ...  / Yes
+√ Would you like your code inside a `src/` directory? ...  / Yes
+√ Would you like to use App Router? (recommended) ...  / Yes
+√ Would you like to use Turbopack? (recommended) ... No /
+√ Would you like to customize the import alias (`@/*` by default)? ... No /
+```
+
+## プロジェクトの起動
+
+```sh
+cd [プロジェクト名]
+npm run dev
+```
+
+- http://localhost:3000 にアクセスして、Next.jsのウェルカムページが表示されれば成功です。
+
+## 初期設定
+
+```sh
+mkdir -p public/img
+mkdir -p public/data
+mkdir -p src/components
+```
+
+## 追加ライブラリ
+```sh
+## Tailwind Variants
+npm install tailwind-variants
+
+## ui.shadcn
+## https://ui.shadcn.com/
+npx shadcn@latest init -d
+npx shadcn@latest add
+
+### 以下必要に応じて追加
+## Headless UI
+## https://headlessui.com/v1
+npm install @headlessui/react
+
+## reacticons
+## https://react-icons.github.io/react-icons/
+npm install react-icons
+
+## Heroicons
+## https://zenn.dev/nino_cast/books/43c539eb47caab/viewer/807f3b
+## https://heroicons.com/solid
+npm install @heroicons/react
+
+## ブラウザ依存のライブラリ
+## https://qiita.com/KokiSakano/items/e3a42a12f5de3c9f88ea
+npm install framer-motion
+
+## Material-UIおよびemotion関連のパッケージ
+npm install @mui/material
+npm install @emotion/react
+npm install @emotion/styled
+
+## lucide
+## https://lucide.dev/guide/
+npm install lucide-react
+
+## 日付フォーマット用ライブラリ
+npm install date-fns
+
+## Markdownレンダリング用ライブラリ
+npm install react-markdown @tailwindcss/typography remark-gfm
+### pre-nextjs\app\globals.cssに以下を追加
+### [参考]https://github.com/tailwindlabs/tailwindcss-typography
+@plugin "@tailwindcss/typography";
+```
