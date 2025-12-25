@@ -1,0 +1,33 @@
+# コピーコマンド
+
+## 対象のファイルだけ
+
+```sh
+
+./app
+└─temple
+    ├─sample01
+    | └─page.tsx
+    ├─sample02
+    |  └─page.tsx    
+    ├─sample03
+    | └─page.tsx
+    └─sample04
+      └─page.tsx
+```
+
+- 実行方法
+cp -n --parents app/temple/sample02/page.tsx /home/temp/
+cp -n --parents app/temple/sample03/page.tsx /homp/temp/
+
+- 実行結果
+
+```sh
+/home/temp
+└─ app
+   └─ temple
+      ├─ sample02
+      │  └─ page.tsx
+      └─ sample03
+         └─ page.tsx
+```

@@ -1,0 +1,142 @@
+# Open AIの開発ドキュメント
+
+- [Open AIの開発ドキュメント](open-aiの開発ドキュメント)
+  - [前提条件](#前提条件)
+  - [ライブラリのインストール](#ライブラリのインストール)
+  - [ストリーミング実行方法](#ストリーミング実行方法)
+  - [結果をjsonファイル・markdowファイルに出力](#結果をjsonファイルmarkdowファイルに出力)
+  - [Tool Useの使用方法](#tool-useの使用方法)
+
+## 前提条件
+- モデルは「gemini-2.5-flash」
+- Google AI StudioのAPIkeyが必要
+
+## ライブラリのインストール
+
+```sh
+pip install openai
+```
+
+## ストリーミング実行方法
+
+```python
+from openai import OpenAI
+import json
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+gemini_api=os.environ['GOOGLE_AI_ST_API']
+gemini_base_url='https://generativelanguage.googleapis.com/v1beta/openai/'
+client = OpenAI(api_key=gemini_api,base_url=gemini_base_url)
+# ▼▼▼▼▼　実装例　▼▼▼▼▼　
+prompt = "いろは歌を詠んで"
+res_stream = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=[{"role": "user", "content": prompt}],
+  stream=True　// ← ストリーミング時に必要
+)
+# ストリームからのレスポンスをループ処理し、順次出力
+for chunk in res_stream:
+  # テキストが生成されたときのみ処理
+  if chunk.choices[0].delta.content is not None:
+    print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+## 結果をjsonファイル・markdowファイルに出力
+```python
+import json
+## 【他ライブラリの読み込み省略】
+# ▼▼▼▼▼　実装例　▼▼▼▼▼　
+prompt = "いろは歌を詠んで"
+res = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=[
+    {"role": "user","content": prompt}
+  ]
+)
+#JSON をファイルとして保存
+with open("./out/res01.json", "w", encoding="utf-8") as f:
+  f.write(res.to_json())
+print(res.to_json())
+```
+
+## Tool Useの使用方法
+```python
+import requests
+## 【他ライブラリの読み込み省略】
+# ▼▼▼▼▼　実装例　▼▼▼▼▼　
+## 祝日を取得する関数
+def get_japanese_holiday(year):
+  url = f"https://holidays-jp.github.io/api/v1/{year}/date.json"
+  res = requests.get(url)
+  return res.json()
+## 関数をLLMツールとして定義
+tools = [
+  {
+    "type":"function",
+    "function":{
+      "name":"get_japanese_holiday",
+      "description":"指定された年の祝日を取得するツール",
+      "parameters":{
+        "type":"object",
+        "properties":{
+          "year":{
+            "type":"integer",
+            "description":"祝日を取得したい年（例： 2024）"
+          }
+        },
+        "required":["year"]
+      }
+    }
+  }
+]
+# ====== １回目のLLM実行 ======
+prompt = [
+  {"role":"user","content":"2024年の祝日を取得してください"}
+]
+res = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=prompt,
+  tools=tools,
+)
+res_message = res.choices[0].message
+# resの内容を確認
+print(res.to_json())
+# toolの実行
+res_message = res.choices[0].message
+prompt.append(res_message.to_dict())
+available_func = {
+  "get_japanese_holiday": get_japanese_holiday,
+}
+# 関数実行
+res_func = res_message.tool_calls[0]
+func_name = res_func.function.name
+func_to_call = available_func[func_name]
+# AI から渡された引数(JSON)
+func_args = json.loads(res_func.function.arguments)
+func_res = func_to_call(
+  year=func_args.get("year")
+)
+## 関数実行結果を会話履歴に追加
+## Tool レスポンスは文字列で渡す必要あり
+prompt.append({
+  "role":"tool",
+  "tool_call_id":res_func.id,
+  "name":func_name,
+  "content":json.dumps(func_res)
+})
+# ====== 2回目のLLM実行 ======
+prompt_add = [
+  {"role":"user","content":"2025年の祝日を教えて下さい"}
+]
+prompt.append(prompt_add)
+res2 = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=prompt_add,
+)
+# 最終回答内容
+res_cotent = res2.choices[0].message.content
+# マークダウン形式でファイルに出力
+with open("./out/res03.md", "w", encoding="utf-8") as f:
+  f.write(res_cotent)
+```
