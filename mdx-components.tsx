@@ -2,17 +2,17 @@ import type { MDXComponents } from 'mdx/types'
 
 const components: MDXComponents = {
   h1: ({ children, ...props }) => (
-    <h1 className="text-3xl font-bold mt-6 mb-4 pb-2 border-b border-gray-300 dark:border-gray-700" {...props}>
+    <h1 className="text-3xl font-bold mt-6 mb-4 pb-2 border-b border-gray-300 dark:border-gray-700" id={children.toString()} {...props}>
       {children}
     </h1>
   ),
   h2: ({ children, ...props }) => (
-    <h2 className="text-2xl font-semibold mt-6 mb-4 pb-2 border-b border-gray-300 dark:border-gray-700" {...props}>
+    <h2 className="text-2xl font-semibold mt-6 mb-4 pb-2 border-b border-gray-300 dark:border-gray-700" id={children.toString()} {...props}>
       {children}
     </h2>
   ),
   h3: ({ children, ...props }) => (
-    <h3 className="text-xl font-semibold mt-5 mb-3" {...props}>
+    <h3 className="text-xl font-semibold mt-5 mb-3" id={children.toString()} {...props}>
       {children}
     </h3>
   ),

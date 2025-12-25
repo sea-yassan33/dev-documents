@@ -1,11 +1,11 @@
 # Open AIの開発ドキュメント
 
-- [Open AIの開発ドキュメント](open-aiの開発ドキュメント)
+- [目次]
   - [前提条件](#前提条件)
   - [ライブラリのインストール](#ライブラリのインストール)
   - [ストリーミング実行方法](#ストリーミング実行方法)
-  - [結果をjsonファイル・markdowファイルに出力](#結果をjsonファイルmarkdowファイルに出力)
-  - [Tool Useの使用方法](#tool-useの使用方法)
+  - [結果をjsonファイル\_markdowファイルに出力](#結果をjsonファイル_markdowファイルに出力)
+  - [Tool Useの使用方法](#tool_useの使用方法)
 
 ## 前提条件
 - モデルは「gemini-2.5-flash」
@@ -42,7 +42,7 @@ for chunk in res_stream:
     print(chunk.choices[0].delta.content, end="", flush=True)
 ```
 
-## 結果をjsonファイル・markdowファイルに出力
+## 結果をjsonファイル_markdowファイルに出力
 ```python
 import json
 ## 【他ライブラリの読み込み省略】
@@ -60,7 +60,7 @@ with open("./out/res01.json", "w", encoding="utf-8") as f:
 print(res.to_json())
 ```
 
-## Tool Useの使用方法
+## tool_useの使用方法
 ```python
 import requests
 ## 【他ライブラリの読み込み省略】
