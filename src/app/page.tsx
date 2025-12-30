@@ -1,21 +1,8 @@
-const docs = [
-  {
-    title: "ドキュメント一覧",
-    href: "/docs",
-  },
-  {
-    title: "Python",
-    href: "/python",
-  },
-  {
-    title: "Next.js",
-    href: "/nextjs",
-  },
-];
+import headerLinks from "@/components/Header/headerLink";
 
 export default function Home() {
   return (
-    <main className="max-w-xl mx-auto mt-24 p-8 rounded-lg shadow-lg bg-white dark:bg-zinc-900 transition-colors">
+    <main className="max-w-xl mx-auto mt-8 p-8 rounded-lg shadow-lg bg-white dark:bg-zinc-900 transition-colors">
       <h1 
         className="text-3xl md:text-4xl font-bold mb-8 text-left text-gray-800 dark:text-gray-100"
         style={{
@@ -31,7 +18,7 @@ export default function Home() {
       </h1>
       <nav>
         <ul className="space-y-6">
-          {docs.map((doc) => (
+          {headerLinks.map((doc) => (
             <li key={doc.href}>
             <a
                 href={doc.href}

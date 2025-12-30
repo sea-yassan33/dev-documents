@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import HeaderParts from "@/components/Header/headerParts";
 
 export const metadata: Metadata = {
   title: "DDOC|開発用ドキュメント",
@@ -23,6 +24,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="min-h-screen mx-10 md:mx-20">
+        <HeaderParts />
         {children}
       </body>
     </html>
