@@ -1,0 +1,1016 @@
+# Open AIの開発ドキュメント
+
+- [目次]
+  - [前提条件](#前提条件)
+  - [ライブラリのインストール](#ライブラリのインストール)
+  - [Geminiモデルについて](#geminiモデルについて)
+  - [Chat completions API で利用可能なパラメータ](#chat_completions_api_で利用可能なパラメータ)
+  - [ストリーミング実行方法](#ストリーミング実行方法)
+  - [結果をjsonファイル\_markdowファイルに出力](#結果をjsonファイル_markdowファイルに出力)
+  - [Tool Useの使用方法](#tool_useの使用方法)
+  - [Structured_Output使用方法](#structured_output使用方法)
+  - [Function Callingの活用方法](#function_callingの活用方法)
+  - [Travilyについて](#travilyについて)
+  - [tavily_langchainの活用方法](#tavily_langchainの活用方法)
+  - [vectorstoresについて](#vectorstoresについて)
+  - [gitリポジトリ拡張性検索生成](#gitリポジトリ拡張性検索生成)
+
+## 前提条件
+- Google AI StudioのAPIkeyが必要
+
+## ライブラリのインストール
+
+```sh
+pip install openai
+```
+
+## geminiモデルについて
+
+https://ai.google.dev/gemini-api/docs?hl=ja
+
+### pythonドキュメント
+
+https://pypi.org/project/google-genai/
+
+### インストール
+
+```sh
+pip install google-genai
+```
+
+- google.genai
+  - Google が最新の Gemini API 用に提供している公式クライアント SDK。
+  - OpenAI の openai.Client のようなもの。
+
+- pydantic
+  - Python のデータモデル定義ライブラリ。
+  - AI の出力を型安全に扱うために使用（構造化出力の要）。
+
+### システムプロンプト設定
+
+```python
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import os
+from dotenv import load_dotenv
+import requests
+import json
+load_dotenv()
+client = genai.Client(api_key=os.environ['GOOGLE_AI_ST_API'])
+# URLの内容を取得
+url = "https://www.pt-ot-st.net/index.php/topics/detail/1807"
+response = requests.get(url)
+content = response.text
+##　プロンプト
+prompt = f"""
+以下の内容について要約してください。
+
+{content}
+"""
+# 生成設定の指定してAPI_CALL
+res = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt,
+    config=types.GenerateContentConfig(
+        temperature=0.7,
+        max_output_tokens=5000
+    )
+)
+## 出力
+# テキストを取得
+text = res.text
+# ファイル名を指定して書き込み
+output_file = './out/response02.md'
+with open(output_file, 'w', encoding='utf-8') as f:
+    f.write(text)
+## トークン量
+print(f'【合計トークン】{res.usage_metadata.total_token_count}')
+```
+
+### 構造化出力の方法
+- [構造化出力](https://ai.google.dev/gemini-api/docs/structured-output?hl=ja&example=recipe#javascript_2)
+
+**参考例：**
+- 実装例１
+
+```python
+from google import genai
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import os
+from dotenv import load_dotenv
+import json
+load_dotenv()
+client = genai.Client(api_key=os.environ['GOOGLE_AI_ST_API'])
+# 構造化スキーマを定義
+## 材料分量の型
+class Ingredient(BaseModel):
+  name: str = Field(description="材料名（日本語で書いてください）")
+  quantity: str = Field(description="分量（単位も含めて日本語で書いてください）")
+# Gemini伝える型
+## スキーマ通りにJSONを返す要求
+class Recipe(BaseModel):
+  recipe_name: str = Field(description="レシピ名（日本語）")
+  prep_time_minutes: Optional[int] = Field(description="調理時間（分）")
+  ingredients: List[Ingredient]
+  instructions: List[str] = Field(description="料理手順（日本語で書いてください）")
+# クライアント・プロンプト設定
+client = genai.Client(api_key=os.environ['GOOGLE_AI_ST_API'])
+prompt = """
+次のテキストからレシピを抽出してください。
+ユーザーはおいしいチョコチップクッキーを作りたいと思っています。
+材料は、薄力粉 2 と 1/4 カップ、ベーキングソーダ 小さじ 1、
+塩 小さじ 1、無塩バター（柔らかくしたもの） 1 カップ、グラニュー糖 3/4 カップ、
+ブラウンシュガー 3/4 カップ、バニラエッセンス 小さじ 1、卵 L 個です。
+さらに、セミスイートチョコチップ 2 カップも必要です。
+まず、オーブンを 190°C（375°F）に予熱します。次に、小さなボウルに薄力粉、ベーキングソーダ、塩を入れて泡立て器で混ぜます。大きなボウルにバター、グラニュー糖、ブラウンシュガーを入れて、軽くふわふわになるまでクリーム状にします。バニラと卵を 1 つずつ加えて混ぜます。粉類を少しずつ加えて、混ざり合うまで混ぜます。最後にチョコチップを加えて混ぜます。油を塗っていない天板に大さじ1杯ずつ落とし、9～11分焼きます。
+"""
+## APIコール
+res = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt,
+    config={
+        "response_mime_type": "application/json",
+        "response_json_schema": Recipe.model_json_schema(),
+    },
+)
+## レスポンスで受け取った内容をjson形式に整える
+## recipe = Recipe.model_validate_json(res.text)
+# 出力
+## jsonを取得
+raw_json = json.loads(res.text)
+json_text=json.dumps(raw_json, indent=2, ensure_ascii=False)
+# ファイル名を指定して書き込み
+output_file = './out/res.json'
+with open(output_file, 'w', encoding='utf-8') as f:
+    f.write(json_text)
+```
+
+- 実装例２
+
+```python
+from google import genai
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import os
+from dotenv import load_dotenv
+import json
+load_dotenv()
+client = genai.Client(api_key=os.environ['GOOGLE_AI_ST_API'])
+# Pydantic モデル定義
+class Recipe(BaseModel):
+  name: str = Field(description="レシピ名（日本語）")
+  total_time: int = Field(description="そのレシピの合計調理時間を分で数値を代入")
+  ingredients: list[str] = Field(description="材料と容量（日本語）")
+  steps: list[str] = Field(description="調理手順（日本語）")
+# クライアント・プロンプト設定
+client = genai.Client(api_key=os.environ['GOOGLE_AI_ST_API'])
+## プロンプト
+prompt = """
+トマトソースパスタのレシピを教えて下さい。
+"""
+# Pydanticを指定してAPI_CALL
+res = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt,
+    config={
+        "response_mime_type": "application/json",
+        "response_json_schema": Recipe.model_json_schema(),
+    },
+)
+## 出力
+# jsonを取得
+raw_json = json.loads(res.text)
+json_text=json.dumps(raw_json, indent=2, ensure_ascii=False)
+# ファイル名を指定して書き込み
+output_file = './out/response04.json'
+with open(output_file, 'w', encoding='utf-8') as f:
+    f.write(json_text)
+```
+
+### LangGraph
+- [超基本](https://qiita.com/te_yama/items/0efbe8fae93dbe63288e)
+- [分岐編](https://qiita.com/te_yama/items/02df3b4216d47b0ebbbf)
+- [簡易AIエージェント(Gemini)編](https://qiita.com/te_yama/items/f9e7c6a7c1017368e426)
+- [Gemini 2.5 と LangGraph を使用して](https://ai.google.dev/gemini-api/docs/langgraph-example?hl=ja)
+
+```python
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph
+from IPython.display import Image, display
+# stateの定義
+## TypedDictでStateクラスを定義
+class State(TypedDict):
+  value: str
+# Nodeの作成
+## nodeはStateを受け取って、更新したい情報を返す関数
+def node1(state: State):
+    value = state["value"] + "_node1"
+    return {"value": value}
+def node2(state: State):
+    value = state["value"] + "_node2"
+    return {"value": value}
+# Graphの作成
+## StateGraphのインスタンスを作成
+graph = StateGraph(State)
+# GrphにNodeを追加
+graph.add_node("node1", node1)
+graph.add_node("node2", node2)
+# Edgeを追加
+graph.add_edge("node1", "node2")
+# 始点と終点を定義
+graph.set_entry_point("node1")
+graph.set_finish_point("node2")
+# NodeとEdgeで構成したGraphをコンパイル
+graph = graph.compile()
+
+# Graphを可視化(mermaid)
+display(Image(graph.get_graph().draw_mermaid_png()))
+
+# 実行
+graph.invoke({"value": "hoge"})
+
+## デバッグ
+graph.invoke({"value": "hoge"}, debug=True)
+```
+
+### 分岐付きEdge
+```python
+
+# stateの定義
+## TypedDictでStateクラスを定義
+class State(TypedDict):
+  value: str
+# Nodeの作成
+# 開始Nodeの定義
+def start(state: State):
+    value = state["value"]
+    return {"value": value}
+## nodeはStateを受け取って、更新したい情報を返す関数
+def node1(state: State):
+    value = state["value"] + "_node1"
+    return {"value": value}
+def node2(state: State):
+    value = state["value"] + "_node2"
+    return {"value": value}
+
+# Graphの作成
+## StateGraphのインスタンスを作成
+graph = StateGraph(State)
+# Graphに開始Nodeの追加
+graph.add_node("start", start)
+graph.add_node("node1", node1)
+graph.add_node("node2", node2)
+# 始点と終点を定義
+graph.set_entry_point("start")
+graph.set_finish_point("node1")
+graph.set_finish_point("node2")
+
+# 次のノードを決定する呼び出し可能オブジェクト
+def routing(state: State) -> Literal["node1", "node2"]:
+  cond = state["value"]
+  ## 1の場合は
+  if cond == "1":
+    return "node1"
+  else:
+    return "node2"
+
+# 条件付きEdgeの追加
+graph.add_conditional_edges(
+    "start",
+    routing,
+)
+
+graph = graph.compile()
+display(Image(graph.get_graph().draw_mermaid_png()))
+
+# 実行例１
+graph.invoke({"value": "1"}, debug=True)
+# 実行例２
+graph.invoke({"value": "2"}, debug=True)
+```
+
+
+## Chat_completions_API_で利用可能なパラメータ
+
+|パラメータ|型|必須/任意|説明|
+|:----|:----|:----|:----|
+|messages|array|●|llmに与える会話文。テキストに加え、画像や音声にも対応|
+|model|string|●|使用するモデル|
+|max_completion_tokens|intege/null|-|生成されるトークン数の上限。推論モデルの場合、表示されない推論トークンを含む。|
+|n|integer/null|-|生成する回答の数。1~4の値を指定できる。コストを抑えるために1を指定。デフォルトは1|
+|response_format|object/null|-|生成する回答の形式。JSON形式やMarkdown形式などを指定できる。|
+|temperature|float/null|-|出力のランダム性を制御する。高い値にするほどランダム性を増し、低い値にするほど安定した応答が生成される。0~2の値を指定できる。0に近いほど回答が統一される。デフォルトは1.0|
+|top_p|float/null|-|出力のランダム性を制御、0に近いほど確率の高い出力のみ生成。0~1の値を指定できる。デフォルトは1|
+|tools|array|-|モデルが呼び出せるツール（関数）のリスト。最大128個まで指定できる。|  
+|tool_choice|string/object|-|モデルが使用するツールを指定。note(なし)、auto(ツールを自動選択)、required(ツールを必ず使用)または特定のツールを使用できる。|  
+|seed|integer/null|-|生成する回答の多様性。0~1の値を指定できる。0に近いほど回答が統一される。デフォルトは0|
+
+
+## ストリーミング実行方法
+
+```python
+from openai import OpenAI
+import json
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+gemini_base_url='https://generativelanguage.googleapis.com/v1beta/openai/'
+client = OpenAI(api_key=os.environ['GOOGLE_AI_ST_API'],base_url=gemini_base_url)
+# ▼▼▼▼▼　実装例　▼▼▼▼▼　
+prompt = "いろは歌を詠んで"
+res_stream = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=[{"role": "user", "content": prompt}],
+  stream=True　// ← ストリーミング時に必要
+)
+# ストリームからのレスポンスをループ処理し、順次出力
+for chunk in res_stream:
+  # テキストが生成されたときのみ処理
+  if chunk.choices[0].delta.content is not None:
+    print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+## 結果をjsonファイル_markdowファイルに出力
+```python
+import json
+## 【他ライブラリの読み込み省略】
+# ▼▼▼▼▼　実装例　▼▼▼▼▼　
+prompt = "いろは歌を詠んで"
+res = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=[
+    {"role": "user","content": prompt}
+  ]
+)
+#JSON をファイルとして保存
+with open("./out/res01.json", "w", encoding="utf-8") as f:
+  f.write(res.to_json())
+print(res.to_json())
+```
+
+## tool_useの使用方法
+```python
+import requests
+## 【他ライブラリの読み込み省略】
+# ▼▼▼▼▼　実装例　▼▼▼▼▼　
+## 祝日を取得する関数
+def get_japanese_holiday(year):
+  url = f"https://holidays-jp.github.io/api/v1/{year}/date.json"
+  res = requests.get(url)
+  return res.json()
+## 関数をLLMツールとして定義
+tools = [
+  {
+    "type":"function",
+    "function":{
+      "name":"get_japanese_holiday",
+      "description":"指定された年の祝日を取得するツール",
+      "parameters":{
+        "type":"object",
+        "properties":{
+          "year":{
+            "type":"integer",
+            "description":"祝日を取得したい年（例： 2024）"
+          }
+        },
+        "required":["year"]
+      }
+    }
+  }
+]
+# ====== １回目のLLM実行 ======
+prompt = [
+  {"role":"user","content":"2024年の祝日を取得してください"}
+]
+res = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=prompt,
+  tools=tools,
+)
+res_message = res.choices[0].message
+# resの内容を確認
+print(res.to_json())
+# toolの実行
+res_message = res.choices[0].message
+prompt.append(res_message.to_dict())
+available_func = {
+  "get_japanese_holiday": get_japanese_holiday,
+}
+# 関数実行
+res_func = res_message.tool_calls[0]
+func_name = res_func.function.name
+func_to_call = available_func[func_name]
+# AI から渡された引数(JSON)
+func_args = json.loads(res_func.function.arguments)
+func_res = func_to_call(
+  year=func_args.get("year")
+)
+## 関数実行結果を会話履歴に追加
+## Tool レスポンスは文字列で渡す必要あり
+prompt.append({
+  "role":"tool",
+  "tool_call_id":res_func.id,
+  "name":func_name,
+  "content":json.dumps(func_res)
+})
+# ====== 2回目のLLM実行 ======
+prompt_add = [
+  {"role":"user","content":"2025年の祝日を教えて下さい"}
+]
+prompt.append(prompt_add)
+res2 = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=prompt_add,
+)
+# 最終回答内容
+res_cotent = res2.choices[0].message.content
+# マークダウン形式でファイルに出力
+with open("./out/res.md", "w", encoding="utf-8") as f:
+  f.write(res_cotent)
+```
+
+## Structured_Output使用方法
+
+- レスポンス形式をPydanticライブラリのクラスで指定ができます。
+- レスポンスのキーや出力に関する情報をコード上で効率的に管理できます。
+- 得られたレスポンス型情報を保持したまま、別の関数や処理に渡すことが可能になります
+
+### サポートされている型
+
+
+|型|説明|
+|:----|:----|
+|string|文字列型|
+|number|数値型|
+|boolean|真偽値型|
+|integer|整数型|
+|array|配列型（複数の要素を持つリスト）|
+|enum|列挙型（あらかじめ定義された値のみを持つ型）|
+|anyOf|複数の方の中からいずれか一つ満たせばよい組み合わせ用のキーワード|
+|||
+
+### ライブラリインストール
+
+```sh
+pip install pydantic
+```
+
+- 実装例
+
+```python
+from pydantic import BaseModel
+## 【他ライブラリの読み込み省略】
+
+# Structured Outputの実行例
+## Pydanticのクラスを定義
+class Recipe(BaseModel):
+  name: str
+  servings: int
+  ingredients: list[str]
+  steps: list[str]
+
+## Structured Outputに対応するPydanticモデルを指定して呼び出す
+res = client.beta.chat.completions.parse(
+  model="gemini-2.5-flash",
+  messages=[{"role": "user", "content": "チーズケーキの作り方を教えてください。"}],
+  temperature=0.0,
+  response_format=Recipe,
+)
+
+#JSON をファイルとして保存
+with open("./out/res.json", "w", encoding="utf-8") as f:
+  f.write(res.to_json())
+print(res.to_json())
+```
+
+## function_callingの活用方法
+
+![Function Callingの処理フロー](https://i.gyazo.com/3a52d461ec7432f7d02bc8eafdb8d7d2.png)
+
+
+- 実装例
+
+```python
+## 天気情報を取得するダミー関数
+def get_weather(location):
+  # 実際のAPIを呼び出す部分を簡略化
+  weather_info = {
+    "Tokyo": "晴れ、気温25度",
+    "Osaka": "曇り、気温22度",
+    "Kyoto": "雨、気温18度"
+  }
+  return weather_info.get(location, "天気情報が見つかりません")
+
+## ツールの定義
+tools = [
+  {
+    "type": "function",
+    "function": {
+      "name": "get_weather",
+      "description": "指定された場所の天気情報を取得します",
+      "parameters":{
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "都市名（例：Tokyo）"
+          },
+        },
+        "required": ["location"]
+      },
+    }
+  }
+]
+## 初回のメッセージ
+mes = [{
+  "role": "user",
+  "content": "東京の天気を教えて下さい。"
+}]
+
+## モデルへの最初のAPIリクエスト
+res = client.chat.completions.create(
+  model="gemini-2.5-flash",
+  messages=mes,
+  tools=tools,
+  tool_choice="auto",
+)
+
+# モデルからの応答を取得
+res_message = res.choices[0].message
+print("=== モデルからの応答 ===")
+print(res_message.to_json())
+
+# 応答のメッセージを追加
+mes.append(res_message)
+mes.append({
+  "role": "user",
+  "content": "get_weatherの結果を基にアドバイスをしてください"
+})
+
+## 関数呼び出し処理
+if res_message.tool_calls:
+  for tool_call in res_message.tool_calls:
+    if tool_call.function.name == "get_weather":
+      function_args = json.loads(tool_call.function.arguments)
+      print(f"=== ツールの呼び出し ===")
+      print(f"ツール名: {tool_call.function.name}")
+      print(f"引数: {function_args}")
+      weather_res = get_weather(location=function_args["location"])
+      mes.append({
+        "tool_call_id": tool_call.id,
+        "role": "tool",
+        "name": tool_call.function.name,
+        "content": weather_res
+      })
+else:
+  print("ツールの呼び出しがありませんでした。")
+
+## モデルへの最終的なAPIリクエスト
+final_res = client.chat.completions.create(
+    model="gemini-2.5-flash",
+    messages=mes,
+    response_format={"type": "json_object"} 
+)
+
+## 出力
+with open("./out/res.json", "w", encoding="utf-8") as f:
+  f.write(final_res.to_json())
+print(final_res.to_json())
+```
+
+## travilyについて
+
+- Tavily Search APIは、AIエージェント用に設計された検索エンジンAPIで、リアルタイムかつ正確な情報を提供します
+- 外部情報の検索や抽出が可能でRAG向けに最適化されており、LangChainやLlamaIndexへの統合が簡単にできます。
+- 月に1,000回まで無料でAPIコールが可能です。
+
+### ライブラリインストール
+
+```sh
+pip install tavily-python
+pip install langchain-tavily
+```
+
+### 実装例（Python SDK）
+
+```python
+tavily_client = TavilyClient(api_key=os.environ['TAVILY_API_KEY'])
+# tavilyをPython SDKで利用する
+res = tavily_client.extract("https://ja.wikipedia.org/wiki/%E5%A4%A7%E8%B0%B7%E7%BF%94%E5%B9%B3")
+# レスポンス(dict)をJSON文字列に変換
+json_str = json.dumps(res, indent=2, ensure_ascii=False)
+with open("./out/res.json", "w", encoding="utf-8") as f:
+  f.write(json_str)
+```
+
+### 実装例（LangChain）
+
+```python
+search = TavilySearchResults(max_results=5)
+res = search.invoke("LangChainの最新情報を日本語で教えて")
+# レスポンス(dict)をJSON文字列に変換
+json_str = json.dumps(res, indent=2, ensure_ascii=False)
+with open("./out/res.json", "w", encoding="utf-8") as f:
+  f.write(json_str)
+```
+
+## tavily_langchainの活用方法
+```sh
+[Tavily Search API]
+   └─ 最新ニュースを検索（URL・本文）
+        ↓
+[LangChain]
+   ├─ 検索結果をDocument化
+   └─ LLMで「5件抽出 + 各100文字要約」
+        ↓
+[Python]
+   └─ コンソール or APIレスポンスとして出力
+```
+
+```python
+from tavily import TavilyClient
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.documents import Document
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+import json
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+tavily_client = TavilyClient(api_key=os.environ['TAVILY_API_KEY'])
+model = ChatGoogleGenerativeAI(model= "gemini-2.5-flash", google_api_key=os.environ['GOOGLE_AI_ST_API'], temperature=0.7)
+
+# ① Tavily検索ツール
+tavily = TavilySearchResults(
+  max_results=10,
+  search_depth="advanced"
+)
+# ② 最新ニュース検索
+query = "最近の日本の主要な経済ニュース"
+search_results = tavily.invoke({"query": query})
+
+# レスポンス(dict)をJSON文字列に変換
+json_str = json.dumps(search_results, indent=2, ensure_ascii=False)
+with open("./out/res05-11.json", "w", encoding="utf-8") as f:
+  f.write(json_str)
+
+# ③ Document化
+documents = [
+  Document(
+    page_content=result["content"],
+    metadata={"url": result["url"], "title": result["title"]}
+  )
+  for result in search_results
+]
+news_text = "\n\n".join(doc.page_content for doc in documents)
+# ⑤ プロンプト
+prompt = ChatPromptTemplate.from_template("""
+以下は最新ニュースの情報です。
+この中から重要なニュースを5件選び、
+各ニュースについて「100文字程度」で要約してください。
+
+【出力形式】
+1. タイトル
+   概要（約100文字）
+
+ニュース情報:
+{news}
+""")
+# ⑥ Chain
+chain = prompt | model | StrOutputParser()
+chain2 = prompt | model
+
+# ⑦実行1
+result = chain.invoke({"news": news_text})
+# マークダウン形式でファイルに出力
+with open("./out/res.md", "w", encoding="utf-8") as f:
+  f.write(result)
+
+# ⑦実行2
+result2 = chain2.invoke({"news": news_text})
+## 結果をJSON形式で出力
+json_output = json.dumps(result2.model_dump(), ensure_ascii=False, indent=2)
+print(json_output)
+# ファイルとして保存
+with open("./out/res.json", "w", encoding="utf-8") as f:
+  f.write(json_output)
+```
+
+## vectorstoresについて
+
+### ベクトルストア選定の基本観点
+
+- スケール（データ量）
+  - 数千〜数百万件のドキュメント対応力
+- 検索性能
+  - 精度（再現性・関連性）
+  - 探索速度（リアルタイム性）
+- 運用性
+  - 永続化・バックアップ
+  - 分散対応・クラウド対応
+- コスト
+  - ランニングコスト
+  - ライブラリ・ライセンスの制限
+- ライブラリ・ライセンスの制限
+  - Python サポート、コンテナ化
+  - LangChain との互換性
+
+### 主要なベクトルストア比較
+
+| ストア名         | スケール | 精度  | 永続化  | 分散対応 | 特徴                    |
+| ------------ | ---- | --- | ---- | ---- | --------------------- |
+| **FAISS**    | 中〜大  | 高   | ファイル | なし   | CPU・GPU最適化可能、検索速度高    |
+| **Chroma**   | 中〜大  | 中〜高 | はい   | なし   | Python ネイティブ、セットアップ容易 |
+| **Milvus**   | 大規模  | 高   | はい   | はい   | 分散可能、エンタープライズ向け       |
+| **Pinecone** | 中〜大  | 高   | はい   | はい   | SaaS、運用が簡単            |
+| **Weaviate** | 中〜大  | 高   | はい   | はい   | 内蔵スキーマ、GraphQL対応      |
+| **Qdrant**   | 中〜大  | 高   | はい   | はい   | Rust製、性能と安定性が高い       |
+
+
+### FAISSインストール
+
+```sh
+##CPU版:(windows)
+pip install faiss-cpu
+
+## GPU版:(Linuxのみ、NVIDIA GPUとCUDA環境が必要)
+pip install faiss-gpu
+```
+
+### Gemini エンベディング
+
+- gemini-embedding-001
+- Google の最新のエンベディング モデル。
+- 以前のバージョンよりも安定性が高く、レート制限も引き上げられています。
+- Gemini API の無料階層と有料階層で開発者が利用できます。
+
+### 実装例
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+
+from langchain_core.documents import Document
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import (ChatGoogleGenerativeAI,GoogleGenerativeAIEmbeddings)
+from langgraph.graph import StateGraph
+
+from typing_extensions import TypedDict
+from typing import List
+
+
+embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001",api_key=os.environ['GOOGLE_AI_ST_API'])
+model = ChatGoogleGenerativeAI(
+  model="gemini-2.5-flash", 
+  google_api_key=os.environ['GOOGLE_AI_ST_API'], 
+  temperature=0.7
+)
+
+# ドキュメント作成
+docs = [
+  Document(page_content="LangGraphは状態遷移を管理できるAIワークフレームワークです。"),
+  Document(page_content="RAGは検索結果を元にLLMが回答を生成する手法です。"),
+  Document(page_content="GeminiはGoogleが提供する大規模言語モデルです。"),
+]
+# ベクトルストア作成
+vectorstore = FAISS.from_documents(docs, embeddings)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
+
+## 保存方法
+vectorstore.save_local("./faiss_index")
+
+## 読み込み方法
+# 読み込み
+vectorstore = FAISS.load_local(
+  "./faiss_index",
+  embeddings,
+  allow_dangerous_deserialization=True #pickleロードの危険性を理解した上で許可する
+)
+
+## ステート定義
+class RAGState(TypedDict, total=False):
+  question: str
+  documents: List[str]
+  answer: str
+
+## 検索関数
+def retrieve(state: RAGState):
+  docs = retriever.invoke(state["question"])
+  return {
+    "documents": [d.page_content for d in docs]
+  }
+
+## 回答生成関数
+def generate(state: RAGState):
+  context = "\n".join(state["documents"])
+  prompt = f"""
+以下の情報を使って質問に答えてください。
+
+情報:
+{context}
+
+質問:
+{state["question"]}
+"""
+  result = model.invoke(prompt)
+  return {"answer": result.content}
+
+## グラフ定義
+graph = StateGraph(RAGState)
+graph.add_node("retrieve", retrieve)
+graph.add_node("generate", generate)
+graph.set_entry_point("retrieve")
+graph.add_edge("retrieve", "generate")
+app = graph.compile()
+
+## 実行
+result = app.invoke({
+    "question": "LangGraphとは何ですか？",
+    "documents": [],
+    "answer": ""
+})
+print(result["answer"])
+```
+
+## gitリポジトリ拡張性検索生成
+
+### 参考
+
+[LangChainによる「GitHubリポジトリを学習させる方法」](https://zenn.dev/umi_mori/books/prompt-engineer/viewer/github_repository_langchain_chatgpt)
+
+### ライブラリインストール
+
+```sh
+pip install tiktoken
+
+```
+
+### 実装例
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+
+from langchain_core.documents import Document
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import (ChatGoogleGenerativeAI,GoogleGenerativeAIEmbeddings)
+from langchain_community.document_loaders import GitLoader
+from langchain_text_splitters import CharacterTextSplitter
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+
+import tiktoken
+import time
+import math
+import json
+
+embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001",api_key=os.environ['GOOGLE_AI_ST_API'])
+model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.environ['GOOGLE_AI_ST_API'], temperature=0.7)
+
+# 【gitリポジトリをローカルにクローン】
+ALLOWED_EXTENSIONS = (".md")
+def filter_files(file_path: str) -> bool:
+  # ファイル名が.pyもしくは.mdで終わっているかどうかを返す
+  return file_path.endswith(ALLOWED_EXTENSIONS)
+## クローン
+loader = GitLoader(
+  clone_url="https://github.com/langchain-ai/langchain",
+  repo_path="./langchain",
+  branch="master",
+  file_filter=filter_files,
+)
+## 読み込み
+raw_docs = loader.load()
+
+# 【ドキュメントをチャンクに分割する】
+## chunk_size=1000: チャンクの最大サイズ
+## chunk_overlap=0:隣接チャンク間で重複させる文字数
+## RAG では、文脈がチャンク境界で切れる問題が起きやすいため、重複を持たせることがあります。
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+docs = text_splitter.split_documents(raw_docs)
+
+# 【エンベディングのテスト】
+test_embedding = embeddings.embed_query("テスト")
+print(f"エンベディングの次元数: {len(test_embedding)}")
+
+# 【トークン統計】
+encoding = tiktoken.encoding_for_model("gpt-4o")
+token_counts = []
+for doc in docs:
+    tokens = encoding.encode(doc.page_content)
+    token_counts.append(len(tokens))
+total_tokens = sum(token_counts)
+## 統計情報の表示
+print(f"=== トークン統計 ===")
+print(f"総トークン数: {total_tokens:,}")
+print(f"ドキュメント数: {len(docs)}")
+print(f"平均トークン数: {total_tokens / len(docs):.1f}")
+print(f"最大トークン数: {max(token_counts)}")
+print(f"最小トークン数: {min(token_counts)}")
+print(f"中央値トークン数: {sorted(token_counts)[len(token_counts)//2]}")
+## トークン超えない様に分割数を計算
+max_tokens = 8000
+num_chunks = math.ceil(total_tokens / max_tokens)
+print(f"\n=== バッチ分割 ===")
+print(f"{max_tokens}トークン超えない様に分割数を計算: {num_chunks}")
+batch_size = math.ceil(len(docs) / num_chunks)
+print(f"推奨バッチサイズ: {batch_size}件")
+
+##【バッチ分割】
+MAX_TOKENS = 8000
+SLEEP_BETWEEN_BATCH = 5
+RETRY_SLEEP = 65
+MAX_RETRY = 2
+encoding = tiktoken.encoding_for_model("gpt-4o")
+# ▼▼▼ トークン数を事前計算 ▼▼▼
+docs_with_tokens = []
+for doc in docs:
+  token_count = len(encoding.encode(doc.page_content))
+  docs_with_tokens.append((doc, token_count))
+# ▼▼▼ トークン量ベースでバッチ分割 ▼▼▼
+batches = []
+current_batch = []
+current_tokens = 0
+for doc, token_count in docs_with_tokens:
+  if token_count > MAX_TOKENS:
+    raise ValueError("1ドキュメントが最大トークン数を超えています")
+  if current_tokens + token_count > MAX_TOKENS:
+    batches.append(current_batch)
+    current_batch = [doc]
+    current_tokens = token_count
+  else:
+    current_batch.append(doc)
+    current_tokens += token_count
+if current_batch:
+  batches.append(current_batch)
+# ▼▼▼ FAISS 構築 ▼▼▼
+vectorstore = None
+for idx, batch in enumerate(batches):
+  print(f"処理中: {idx + 1}/{len(batches)} バッチ（{len(batch)}件）")
+  for attempt in range(1, MAX_RETRY + 1):
+    try:
+      if vectorstore is None:
+        vectorstore = FAISS.from_documents(batch, embeddings)
+      else:
+        vectorstore.add_documents(batch)
+      break  # 成功したら retry ループを抜ける
+    except Exception as e:
+      is_rate_limit = "429" in str(e) or "rate limit" in str(e).lower()
+      if not is_rate_limit or attempt == MAX_RETRY:
+        raise
+      print(f"レート制限（{attempt}/{MAX_RETRY}）: {e} → {RETRY_SLEEP}秒待機")
+      time.sleep(RETRY_SLEEP)
+  if idx + 1 < len(batches):
+    time.sleep(SLEEP_BETWEEN_BATCH)
+print("完了！")
+
+# 【ベクトル検索を行うための「検索インターフェース」を作成】
+## search_kwargs={"k": 2}；類似度が高い上位 2 件を取得
+retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+
+# 【プロンプト作成】
+prompt = ChatPromptTemplate.from_template("""
+以下の文書を参考に、質問に答えてください。
+
+【文書】
+{context}
+
+【質問】
+{question}
+""")
+# Document → text 変換用
+def format_docs(docs):
+  return "\n\n".join(doc.page_content for doc in docs)
+# Chain 構築
+chain = (
+  {
+    "context": retriever | format_docs,
+    "question": RunnablePassthrough(),
+  }
+  | prompt
+  | model
+)
+
+# 【実行】
+query = "LangChainには、どんな事が書かれていますか？簡潔にまとめて下さい。"
+res = chain.invoke(query)
+
+# 【結果をJSON形式で出力】
+json_output = json.dumps(res.model_dump(), ensure_ascii=False, indent=2)
+print(json_output)
+## ファイルとして保存
+with open("./out/res-1.json", "w", encoding="utf-8") as f:
+  f.write(json_output)
+
+# 【結果をマークダウン形式で出力】
+output_json = json.loads(json_output)
+# マークダウン形式でファイルに出力
+with open("./out/res-2.md", "w", encoding="utf-8") as f:
+    f.write(json.loads(json_output)['content'])
+```

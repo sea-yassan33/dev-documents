@@ -1,12 +1,16 @@
 import type { NextConfig } from "next";
 import nextMDX from "@next/mdx";
 import rehypePrismPlus from "rehype-prism-plus";
+import remarkGfm from "remark-gfm";
 
 const withMDX = nextMDX({
   extension: /\.(md|mdx)$/, // .mdと.mdx両方を対象にする
   options: {
     rehypePlugins: [
       rehypePrismPlus,
+    ],
+    remarkPlugins: [
+      remarkGfm,
     ],
   },
 });

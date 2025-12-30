@@ -1,0 +1,142 @@
+# LangChainについて
+
+## 参考
+- [LangChainの概要と使い方](https://zenn.dev/umi_mori/books/prompt-engineer/viewer/langchain_overview)
+
+## LangChainとは
+- ChatGPTなどの大規模言語モデルの機能拡張を効率的に実装するためのライブラリです。
+
+## ６つの機能
+
+- Model I/O:OpenAIをはじめとした様々な言語モデル・チャットモデル・エンべディングモデルを切り替えたり、組み合わせたりすることができる機能
+- Retrieval:言語モデルが学習していない事柄に関して、外部データを用いて、回答を生成するための機能
+- Chains:複数のプロンプトに分けて、順番に実行することで、より精度の高い回答が得られます。
+- Memory:ChainsやAgentsの内部における状態保持をする機能
+- Agents:言語モデルに渡されたツールを用いて、モデル自体が、次にどのようなアクションを取るかを決定・実行・観測・完了するまで繰り返す機能
+- Callbacks:大規模言語モデルのアプリケーションのロギング、モニタリング、非同期処理などを効率的に管理する機能
+
+## インストール
+```
+pip install langchain==1.1.0
+pip install langchain-openai==1.1.0
+```
+
+## 使用方法
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import AIMessage,HumanMessage,SystemMessage
+import os
+from dotenv import load_dotenv
+load_dotenv()
+gemini_api=os.environ['GOOGLE_AI_ST_API']
+model = ChatGoogleGenerativeAI(
+    model= "gemini-2.5-flash",
+    google_api_key=gemini_api,
+    temperature=0
+)
+user_name='ジョン'
+messages = [
+  SystemMessage("You are ahelpful assistant."),
+  HumanMessage(f"こんにちは!私は{user_name}といいます！"),
+  AIMessage(content=f"こんにちは、{user_name}!どの様なお手伝いが出来ますか？"),
+  HumanMessage(content="私の名前はわかりますか？")
+]
+res = model.invoke(messages)
+print(res.content)
+```
+
+## 継承関係
+
+![継承関係](https://i.gyazo.com/61f3ef47c0bbf3d8140b748a6d718f99.png)
+
+## LanagSmith
+- 生成AIの実行結果を一元的に管理し、評価作業を効率化できる
+- [公式](https://smith.langchain.com/)
+- [参考](https://qiita.com/YusukeYoshiyama/items/49bafb2dcf388cd5764e)
+
+### envファイル
+```sh
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=<your-api-key>
+LANGCHAIN_PROJECT=<project-name>
+```
+
+### 追跡管理しない場合
+```
+LANGCHAIN_TRACING_V2=false
+```
+
+## LCEL: LangChain Expression Language
+- LCELではプロンプトやLLMを「|(パイプ)」でつなげて書き、処理の連鎖(chain)を実装
+- 
+
+# LCEL徹底解説
+
+- chainとcahinも「|」で連結できる
+```py
+# 1つ目のchain
+cot_prompt = ChatPromptTemplate.from_messages(
+  [
+    ("system","ユーザーの質問にステップバイステップで回答してください"),
+    ("human","{question}"),
+  ]
+)
+cot_chain = cot_prompt | model | output_parser
+# 2つ目のchain
+summarize_prompt = ChatPromptTemplate.from_messages(
+  [
+    ("system","ステップバイステップで回答した内容から結論だけ抽出してください"),
+    ("human","{text}"),
+  ]
+)
+summarize_chain = summarize_prompt | model | output_parser
+
+cot_summary_chain = cot_chain | summarize_chain
+
+output = cot_summary_chain.invoke({"question":"チーズケーキの作り方を教えてください"})
+print(output)
+```
+
+- 複数のRunnableを並行につなげる
+
+```py
+opttimistic_prompt = ChatPromptTemplate.from_messages(
+  [
+    ("system","あなたは楽観主義者です。ユーザーの入力に対して楽観的な意見をください。"),
+    ("human","{topic}"),
+  ]
+)
+optimistic_chain = opttimistic_prompt | model | output_parser
+
+## 悲観主義者の回答
+pessimistic_prompt = ChatPromptTemplate.from_messages(
+  [
+    ("system","あなたは悲観主義者です。ユーザーの入力に対して悲観的な意見をください。"),
+    ("human","{topic}"),
+  ]
+)
+pessimistic_chain = pessimistic_prompt | model | output_parser
+
+## 楽観主義者と悲観主義者の回答を並列に実行
+syntheize_prompt = ChatPromptTemplate.from_messages(
+  [
+    ("system","あなたは客観的な意見を出力します。2つの意見をまとめて下さい"),
+    ("human","楽観的意見:{opimistic_opinion}\n悲観的意見:{pessimistic_opinion}"),
+  ]
+)
+## 楽観的な意見と悲観的ない意見を並列につなげる
+syntheize_chain = (
+  RunnableParallel(
+    {
+      "opimistic_opinion":optimistic_chain,
+      "pessimistic_opinion":pessimistic_chain,
+    }
+  )
+  | syntheize_prompt
+  | model
+  | output_parser
+)
+output = syntheize_chain.invoke({"topic":"今後の日本経済について"})
+
+```
+

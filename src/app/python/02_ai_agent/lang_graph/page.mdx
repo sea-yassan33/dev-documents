@@ -1,0 +1,88 @@
+# LangGraphについて
+
+- LangGraphは、LangChainのツール群に含まれる一つで、各LLMエージェントのステップなどをグラフ化して状態管理を行うためのツールです。
+- LangChainでは、一方向の処理しかできませんでした。LangGraphはループを持つ処理のフローを簡単に構築できるため、LangChainよりも複雑なタスクをこなすことができます。
+- 処理の流れをノードとエッジで構成されるグラフ構造として定義し、ループ、分岐、状態管理を直感的かつ効率的に扱えるようにします。
+
+## 特徴
+- **グラフベースのアーキテクチャ**: ワークフローをノードとエッジのグラフとして定義します。これにより、線形のスクリプトでは扱いにくい複雑な処理フロー（ループ、再試行、分岐など）を、コードを複雑にせずに構築できます。
+- **ステート管理**: グラフの各ステップで状態（コンテキスト）が管理され、次のステップに引き継がれるため、長期的な記憶を持つアプリケーションが実現できます。
+- **マルチエージェントのサポート**: 複数のエージェントが協調して動作するような、より高度なシナリオを構築できます。
+- **高い柔軟性**: LangChainのツールとの統合は必須ではなく、任意のPython関数をノードとして使用できるため、LangChain以外のエコシステムや独自実装とも組み合わせやすいです。
+
+## 基本コンポーネント
+
+|コンポーネント|説明|
+|:----|:----|
+|Graph|LangGraphの中核となる構成要素で、各NodeとEdgeの集合体です。|
+|State|ノード間の遷移の際に保持される情報で、各ノードが参照および更新します。|
+|Node|グラフ内の個々のステップや状態を表す要素で、特定のアクションやチェックポイントとして機能します。|
+|Edge|ノード間の接続を表し、遷移の条件やアクションを定義します。条件付きエッジなど、特定のロジックに基づいて遷移を制御できます。|
+
+## インストール
+
+```sh
+## langgraph
+pip install langgraph
+
+## モデル
+pip install langchain-google-genai
+```
+
+## 基本的な使い方
+```python
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph
+from IPython.display import Image, display
+# stateの定義
+## TypedDictでStateクラスを定義
+class State(TypedDict):
+  value: str
+# Nodeの作成
+## nodeはStateを受け取って、更新したい情報を返す関数
+def node1(state: State):
+    value = state["value"] + "_node1"
+    return {"value": value}
+def node2(state: State):
+    value = state["value"] + "_node2"
+    return {"value": value}
+# Graphの作成
+## StateGraphのインスタンスを作成
+graph = StateGraph(State)
+# GrphにNodeを追加
+graph.add_node("node1", node1)
+graph.add_node("node2", node2)
+# Edgeを追加
+graph.add_edge("node1", "node2")
+# 始点と終点を定義
+graph.set_entry_point("node1")
+graph.set_finish_point("node2")
+# NodeとEdgeで構成したGraphをコンパイル
+graph = graph.compile()
+
+# Graphを可視化(mermaid)
+img_bytes = graph.get_graph().draw_mermaid_png()
+with open("./lang_graph.png", "wb") as f:
+  f.write(img_bytes)
+
+# 実行
+graph.invoke({"value": "hoge"})
+
+## デバッグ
+graph.invoke({"value": "hoge"}, debug=True)
+```
+
+- 可視化の例
+
+![LangGraph](https://i.gyazo.com/25109fab0f345ec3e956d46ae195c5f6.png)
+
+## 後記
+- 最後まで読んで頂きありがとうございます。
+- LangGraph関して学んでいる最中ですが、今後も学んだことをOutPutしていこうと思います。
+
+## 参考
+- [サクッと始めるプロンプトエンジニアリング【LangChain / ChatGPT】](https://zenn.dev/umi_mori/books/prompt-engineer)
+- [超基本](https://qiita.com/te_yama/items/0efbe8fae93dbe63288e)
+- [分岐編](https://qiita.com/te_yama/items/02df3b4216d47b0ebbbf)
+- [簡易AIエージェント(Gemini)編](https://qiita.com/te_yama/items/f9e7c6a7c1017368e426)
+- [Gemini 2.5 と LangGraph を使用して](https://ai.google.dev/gemini-api/docs/langgraph-example?hl=ja)

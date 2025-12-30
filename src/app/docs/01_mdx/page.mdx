@@ -20,7 +20,7 @@ npx create-next-app@15.5.9
 ## モジュールのインポート
 
 ```sh
-npm install @next/mdx @mdx-js/loader rehype-prism-plus prismjs
+npm install @next/mdx @mdx-js/loader rehype-prism-plus prismjs remark-gfm
 ```
 
 ## next.config.tsの設定
@@ -29,12 +29,16 @@ npm install @next/mdx @mdx-js/loader rehype-prism-plus prismjs
 import type { NextConfig } from "next";
 import nextMDX from "@next/mdx";
 import rehypePrismPlus from "rehype-prism-plus";
+import remarkGfm from "remark-gfm";
 
 const withMDX = nextMDX({
   extension: /\.mdx$/,
   options: {
     rehypePlugins: [
       rehypePrismPlus,
+    ],
+    remarkPlugins: [
+      remarkGfm,
     ],
   },
 });
