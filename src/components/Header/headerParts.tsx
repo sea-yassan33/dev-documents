@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { tv } from 'tailwind-variants';
 import Image from "next/image";
-import SpHeaderParts from "./spHeaderParts";
-import headerLinks from "./headerLink";
+import HeaderMenu from "./headerMenu";
 export default function HeaderParts() {
   const twStayles = tv({
     variants: {
@@ -22,17 +21,16 @@ export default function HeaderParts() {
             <Image src="/icon.png" alt="logo" width={50} height={50} />
             <h1 className="text-xl font-semibold text-blue-900">DDOC</h1>
           </Link>
-          <nav className="hidden md:flex items-center gap-6" aria-label="メインメニュー">
+          <HeaderMenu />
+          {/* <nav className="hidden md:flex items-center gap-6" aria-label="メインメニュー">
             {headerLinks.map((link) => (
               <Link key={link.title} href={link.href} className={twStayles({ style: 'header_nav' })}>
                 {link.title}
               </Link>
             ))}
-          </nav>
+          </nav> */}
         </div>
       </div>
-      {/* SP_ヘッダー */}
-      <SpHeaderParts />
     </header>
   );
 }

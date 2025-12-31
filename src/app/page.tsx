@@ -1,4 +1,4 @@
-import headerLinks from "@/components/Header/headerLink";
+import { documentData } from "@/components/data/documentData";
 
 export default function Home() {
   return (
@@ -18,7 +18,7 @@ export default function Home() {
       </h1>
       <nav>
         <ul className="space-y-6">
-          {headerLinks.map((doc) => (
+          {documentData.headerLinks.map((doc) => (
             <li key={doc.href}>
             <a
                 href={doc.href}
